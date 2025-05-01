@@ -5,6 +5,187 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glad/glad.h>
+#include <base.h>
+
+
+const float vertices[4 * 4] = {
+    -1.0, 1.0, 0.0, 0.0,
+    -1.0, -1.0, 0.0, 1.0,
+    1.0, 1.0, 1.0, 0.0,
+    1.0, -1.0, 1.0, 1.0
+};
+
+char* vs = "#version 330 core\n"\
+    "layout (location = 0) in vec4 pos_uv;\n"\
+    "out vec2 uv;\n"\
+    "void main() {\n"\
+    "   uv = vec2(pos_uv.z, pos_uv.w);\n"\
+    "   gl_Position = vec4(pos_uv.x, pos_uv.y, 0.0, 1.0);\n"\
+    "}\0";
+
+
+unsigned int indices[6] = {
+    0, 1, 2, 2, 1, 3
+};
+
+void generate_buffers(systems::container_texture* c) {
+    
+    glGenFramebuffers(1, &c->fbo);
+    
+    glBindFramebuffer(GL_FRAMEBUFFER, c->fbo);  
+    
+
+    glGenTextures(1, &c->screen_texture);
+    glBindTexture(GL_TEXTURE_2D, c->screen_texture);    
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, c->sizex, c->sizey, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  
+    
+    glGenTextures(1, &c->depth_texture);
+    glBindTexture(GL_TEXTURE_2D, c->depth_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 
+                c->sizex, c->sizey, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor); 
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, c->screen_texture, 0);  
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, c->depth_texture, 0);  
+    
+    // printf("Err: %d\n", glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);  
+    
+}
+systems::container_texture* create_container_texture(size_t sizex, size_t sizey) {
+
+    systems::container_texture* c = (systems::container_texture*)malloc(sizeof(systems::container_texture));
+
+    c->sizex = sizex;
+    c->sizey = sizey;
+
+    generate_buffers(c);
+
+    unsigned int vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertex_shader, 1, &vs, NULL);
+    glCompileShader(vertex_shader);
+    int success = 0;
+    char infoLog_vs[512];
+    glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
+    if(!success)
+    {
+        glGetShaderInfoLog(vertex_shader, 512, NULL, infoLog_vs);
+        printf("ERROR::SHADER::VERTEX::COMPILATION_FAILED\n");
+        printf("%s\n", infoLog_vs);
+        printf("\n");
+    }
+
+    
+    size_t sz = 0;
+    char* fs = base::io_open_and_read_file("data/screenbuffer.fs", &sz, "rb");
+
+    fs[sz] = 0;
+    printf(":%s:\n", fs);
+    unsigned int fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+    
+    glShaderSource(fragment_shader, 1, &fs, NULL);
+    glCompileShader(fragment_shader);
+    success = 0;
+    char infoLog_fs[512];
+    glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
+    if(!success)
+    {
+        glGetShaderInfoLog(fragment_shader, 512, NULL, infoLog_fs);
+        printf("ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n");
+        printf(":%s:\n", infoLog_fs);
+        printf("\n");
+    }
+    c->shader = glCreateProgram();
+    glAttachShader(c->shader, vertex_shader);
+    glAttachShader(c->shader, fragment_shader);
+    glLinkProgram(c->shader);
+    
+    
+    glGenBuffers(1, &c->vbo);
+    glGenBuffers(1, &c->ibo);
+
+    
+    glGenVertexArrays(1, &c->vao);
+
+    glBindVertexArray(c->vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, c->vbo);
+    glBufferData(GL_ARRAY_BUFFER, 16 * sizeof(float), vertices, GL_STATIC_DRAW);
+
+    // printf("A: %d\n", glGetError());
+
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void*)0);
+    // printf("A: %d\n", glGetError());
+    glEnableVertexAttribArray(0);
+    // printf("A: %d\n", glGetError());
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, c->ibo);
+    // printf("A: %d\n", glGetError());
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * 6, indices, GL_STATIC_DRAW);
+    // printf("A: %d\n", glGetError());
+    glBindVertexArray(0);
+    // printf("A: %d\n", glGetError());
+
+    
+    return c;
+}
+
+int render_container_texture(systems::container_texture* c) {
+    
+    glViewport(0, 0, c->sizex, c->sizey);
+    
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
+    glClearColor(1.0f, 0.0f, 0.0f, 0.0f); 
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glUseProgram(c->shader);
+    glBindVertexArray(c->vao);
+    glDisable(GL_DEPTH_TEST);
+    
+    glEnable(GL_TEXTURE_2D);
+
+    glUniform1i(glGetUniformLocation(c->shader, "screentex"), 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, c->screen_texture);
+
+    glUniform1i(glGetUniformLocation(c->shader, "depthtex"), 1);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, c->depth_texture);
+
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+    glBindVertexArray(0);
+    glDisable(GL_CULL_FACE);
+    return 0;
+}
+
+int render_to_texture(systems::container_texture* c) {
+    glViewport(0, 0, c->sizex, c->sizey);
+    
+    
+    glBindFramebuffer(GL_FRAMEBUFFER, c->fbo);
+    glEnable(GL_CULL_FACE);
+    
+    glEnable(GL_DEPTH_TEST);
+    glCullFace(GL_BACK);
+
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    // glClearDepth(0.0);
+    
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); // we're not using the stencil buffer now
+    
+    
+    
+    
+    
+    return 0;
+}
 
 systems::rendering* current_rendering_system;
 
@@ -60,6 +241,11 @@ systems::rendering* systems::create_rendering_system() {
             break;
         }
     }
+
+    render->c = create_container_texture(1920, 1080);
+
+    render->bound_radius = (float*)malloc(sizeof(float) * numres);
+
     render->cam_id = cam_id;
     render->cam.position = glm::vec3(tsys->T[cam_id][3]);
     render->cam.look_direction = glm::vec3(0.0, 0.0, 1.0);
@@ -91,6 +277,8 @@ systems::rendering* systems::create_rendering_system() {
     render->lsm_uniform = (unsigned int*)malloc(sizeof(unsigned int) * numres);
     render->albedo_uniform = (unsigned int*)malloc(sizeof(unsigned int) * numres);
     render->shadow_map_uniform = (unsigned int*)malloc(sizeof(unsigned int) * numres);
+
+
 
     char* vs_preamble = "#version 330 core\n"\
     "layout (location = 0) in vec3 in_position;\n"\
@@ -143,11 +331,18 @@ systems::rendering* systems::create_rendering_system() {
         "}\0",
         "\0"
     };
-
+    
     for (int i = 0; i < numres; i++) {
         
         if (resources[i].hasmodel) {
-            
+            float maxr = -1;
+            for (int v = 0; v < resources[i].full_buffer_len - 7; v += 8) {
+                glm::vec3 vp = glm::vec3(resources[i].buffer[v], resources[i].buffer[v + 1], resources[i].buffer[v + 2]);
+                float r = glm::length(vp);
+                if (r > maxr)
+                    maxr = r;
+            }
+            render->bound_radius[i] = maxr;
             render->numinds[i] = resources[i].numinds;
             resources[i].v_shader_str[resources[i].v_shader_str_len] = 0;
             // printf(":ST%s\n:ED", resources[i].v_shader_str);
@@ -273,7 +468,7 @@ systems::lighting* systems::create_lighting_system() {
 
     glGenFramebuffers(1, &lighting->depth_fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, lighting->depth_fbo);
-    printf("fbo: %lu\n", lighting->depth_fbo);
+    // printf("fbo: %lu\n", lighting->depth_fbo);
 
     glGenTextures(1, &lighting->depth_map);
     glBindTexture(GL_TEXTURE_2D, lighting->depth_map);
@@ -390,8 +585,8 @@ void systems::update_lighting_system() {
         }
         
     }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDisable(GL_CULL_FACE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void systems::prepare_rendering_system(size_t sizex, size_t sizey) {
@@ -400,7 +595,37 @@ void systems::prepare_rendering_system(size_t sizex, size_t sizey) {
     glClearColor(0.0, 0.0, 0.0, 0.0);
 }
 
+int object_in_frustum(glm::mat4 model, glm::mat4 view, glm::mat4 proj, float brad, float z)  {
+    glm::vec4 loc = model[3];
+    glm::vec3 size;
+    size.x = glm::length(glm::vec3(model[0])); // Basis vector X
+    size.y = glm::length(glm::vec3(model[1])); // Basis vector Y
+
+
+    glm::vec4 cam_space_loc = view * loc; 
+    brad -= 0.4;
+    brad = (brad > 0.0)?brad:0.0;
+    glm::vec4 testpts[4] = {
+        cam_space_loc + brad * size.x * glm::vec4(1.0, 0.0, 0.0, 0.0),
+        cam_space_loc - brad * size.x * glm::vec4(1.0, 0.0, 0.0, 0.0),
+        cam_space_loc + brad * size.y * glm::vec4(0.0, 1.0, 0.0, 0.0),
+        cam_space_loc - brad * size.y * glm::vec4(0.0, 1.0, 0.0, 0.0),  
+    };
+
+    for (int i = 0; i < 4; i++) {
+        glm::vec4 screen_space_test_pt = proj * testpts[i];
+        screen_space_test_pt /= screen_space_test_pt[3];
+        char on_screen = (screen_space_test_pt[0] > -1.0 && screen_space_test_pt[0] < 1.0) 
+                        && (screen_space_test_pt[1] > -1.0 && screen_space_test_pt[1] < 1.0);
+        if (on_screen)
+            return 1;
+    }
+    return 0;
+
+    
+}
 void systems::update_rendering_system() {
+    // systems::prepare_rendering_system(1920, 1080);
     systems::lighting* light = systems::get_current_lighting_system();
     systems::rendering* render = systems::get_current_rendering_system();
     systems::transform* tsform = systems::get_current_transform_system();
@@ -409,19 +634,22 @@ void systems::update_rendering_system() {
     glm::vec3 t_lookdir = glm::vec3(tsform->RS[render->cam_id] * glm::vec4(render->cam.look_direction, 0.0));
     glm::vec3 t_updir = glm::vec3(tsform->RS[render->cam_id] * glm::vec4(render->cam.up, 0.0));
     render->cam.view = glm::lookAt(render->cam.position, render->cam.position + t_lookdir, t_updir);
-    
+    // glDisable(GL_DEPTH_TEST);
+    render_to_texture(render->c);
+    // printf("AA: %d\n", glGetError());
     for (int l = 0; l < light->num_lights; l++) {
     
         for (int i = 0; i < render->num_objects; i++) {
             
-            if (render->rendering_enabled[i]) {            
+            if (render->rendering_enabled[i] 
+                && object_in_frustum(tsform->T[i], render->cam.view, render->cam.proj, render->bound_radius[i], 0.0)) {            
                     GLint prog = 0;
                     glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
                     
                     if (prog != render->shader_objects[i]) {
                         glUseProgram(render->shader_objects[i]);
                     }
-                    printf("%d\n", glGetError());
+                    // printf("%d\n", glGetError());
                     glUniformMatrix4fv(render->transform_uniform[i], 1, GL_FALSE, glm::value_ptr(tsform->T[i]));
                     glUniformMatrix4fv(render->rotscale_uniform[i], 1, GL_FALSE, glm::value_ptr(tsform->RS[i]));
                     glUniformMatrix4fv(render->view_uniform[i], 1, GL_FALSE, glm::value_ptr(render->cam.view));
@@ -446,10 +674,13 @@ void systems::update_rendering_system() {
                     
                     glDrawElements(GL_TRIANGLES, render->numinds[i], GL_UNSIGNED_INT, 0);
                 
+                    glBindVertexArray(0);
                     render->buffers_bound[i] = 1;
                 
             }
         }
         
     }
+    render_container_texture(render->c);
+    // printf("AA: %d\n", glGetError());
 }

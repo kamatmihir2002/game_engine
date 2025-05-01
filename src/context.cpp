@@ -21,7 +21,6 @@ void context::make_current(void* wHandle, size_t xres, size_t yres) {
     glfwMakeContextCurrent((GLFWwindow*)wHandle);
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
     glViewport(0, 0, xres, yres);
-    glEnable(GL_DEPTH_TEST);
 }
 
 int context::is_open(void* wHandle) {

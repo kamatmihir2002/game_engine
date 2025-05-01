@@ -8,7 +8,7 @@ char* base::io_open_and_read_file(char* path, size_t* sz, char* mode) {
     FILE* f = fopen(path, mode);
     fseek(f, 0, SEEK_END);
     (*sz) = ftell(f);
-    buf = (char*)malloc((*sz) * sizeof(char));
+    buf = (char*)malloc(((*sz) + 1) * sizeof(char));
     fseek(f, 0, SEEK_SET);
     fread(buf, (*sz), sizeof(char), f);
     fclose(f);
@@ -21,7 +21,7 @@ char* base::io_read_file(void* handle, size_t* sz, char* mode) {
     
     fseek(f, 0, SEEK_END);
     (*sz) = ftell(f);
-    buf = (char*)malloc((*sz + 1) * sizeof(char));
+    buf = (char*)malloc(((*sz) + 1) * sizeof(char));
     fseek(f, 0, SEEK_SET);
     fread(buf, (*sz), sizeof(char), f);
     fclose(f);

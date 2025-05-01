@@ -118,24 +118,21 @@ vec3 blinnPhong(sampler2D tex) {
 void main()
 {
     
-    float object_metallicity = 0.01;
-    float object_roughness = 0.01;
+    float object_metallicity = 1.0;
+    float object_roughness = 0.1;
 
     vec3 N = normalize(object_normal);
     vec3 V = normalize(camera_position - object_transformed_position.xyz);
-	           
-    // reflectance equation
-    vec3 Lo = vec3(0.0);
-    // calculate per-light radiance
+    
     vec3 L = normalize(-light_direction);
     vec3 H = normalize(V + L);
 
     vec3 radiance = vec3(1.0, 1.0, 1.0);       
+    vec3 mdiffuse = vec3(1.0, 0.3, 0.5);
     
-    // cook-torrance brdf
     float NDF = ndf(N, H, object_roughness);        
     float G   = smith(N, V, L, object_roughness);      
-    vec3 F    = fresnel(max(dot(H, V), 0.1), vec4(material_diffuse, 1.0), object_metallicity);       
+    vec3 F    = fresnel(max(dot(H, V), 0.1), vec4(mdiffuse, 1.0), object_metallicity);       
     
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
@@ -145,12 +142,11 @@ void main()
     float denominator = 4.0 * max(dot(N, V), 0.1) * max(dot(N, L), 0.1) + 0.0001;
     vec3 specular     = numerator / denominator;  
         
-    // add to outgoing radiance Lo
     float NdotL = max(dot(N, L), 0.01);                
-    Lo = (kD * material_diffuse / PI + specular) * radiance * NdotL; 
+    vec3 Lo = (kD * mdiffuse / PI + specular) * radiance * NdotL; 
 
 
-    vec3 color = vec3(0.01) * material_diffuse + Lo;
+    vec3 color = vec3(0.01) * mdiffuse + Lo;
 
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2));  

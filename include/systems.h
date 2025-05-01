@@ -8,11 +8,17 @@
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
 #include <scene.h>
+#include <ctime>
 
 namespace systems {
     #include <systems/rendering.h>
     #include <systems/transform.h>
     #include <systems/scripting.h>
+
+    
+    void start_time();
+
+    float end_time();
 };
 
 

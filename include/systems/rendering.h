@@ -1,6 +1,23 @@
 #ifndef RENDERING_H__
 #define RENDERING_H__
 
+typedef struct container_texture {
+    
+    unsigned int fbo;
+    unsigned int rbo;
+
+    unsigned int vao;
+    unsigned int vbo;
+    unsigned int ibo;
+    unsigned int shader;
+    unsigned int screen_texture;
+    unsigned int depth_texture;
+    unsigned int sizex;
+    unsigned int sizey;
+    
+} container_texture;
+
+
 typedef struct camera_t {
     glm::vec3 position;
     glm::vec3 look_direction;
@@ -39,6 +56,7 @@ typedef struct rendering_t {
 
     //viewing
     unsigned int* campos_uniform;
+    float* bound_radius;
 
 
     unsigned int* buffers_bound;
@@ -62,6 +80,8 @@ typedef struct rendering_t {
     
     camera cam;
     int cam_id;
+
+    container_texture* c;
 
 } rendering;
 

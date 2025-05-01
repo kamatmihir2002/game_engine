@@ -47,10 +47,13 @@ void engine::application_init(engine::application* app) {
 void engine::application_run(engine::application* app) {
 
     while (context::is_open(app->wHandle)) {
+        systems::start_time();
 
         systems::update_lighting_system();
-        systems::prepare_rendering_system(app->xres, app->yres);
+        // systems::prepare_rendering_system(app->xres, app->yres);
         systems::update_rendering_system();
+        
+        systems::set_frame_time(systems::end_time());
 
         systems::update_scripting_system();
         context::swap_and_poll(app->wHandle);

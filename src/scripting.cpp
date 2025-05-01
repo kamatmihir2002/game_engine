@@ -5,6 +5,17 @@
 
 systems::scripting* current_scripting_system;
 
+std::clock_t c;
+
+void systems::start_time() {
+    c = std::clock();
+}
+
+float systems::end_time() {
+    std::clock_t c2 = std::clock();
+    double f = ((double)c2 - (double)c) / (double)CLOCKS_PER_SEC;
+    return (float)f;
+}
 
 int _internal_translate(lua_State* L) {
     size_t id = lua_tonumber(L, 1);
@@ -46,6 +57,10 @@ void lua_loadscripts(systems::scripting* scr, scene::graph* G, scene::resource* 
     for (int i = 0; i < G->num_children; i++) {
         lua_loadscripts(scr, G->children[i], res_array);
     }
+}
+
+void systems::set_frame_time(float dt) {
+    current_scripting_system->frame_time = dt;
 }
 
 systems::scripting* systems::create_scripting_system() {
@@ -91,7 +106,7 @@ void lua_do_update_script(systems::scripting* sg, scene::graph* G) {
         lua_rawgeti(sg->global_state, -1, G->id + 1);
         lua_getfield(sg->global_state, -1, "update");
         lua_pushnumber(sg->global_state, G->id);
-        lua_pushnumber(sg->global_state, 0.02);
+        lua_pushnumber(sg->global_state, sg->frame_time);
         lua_pcall(sg->global_state, 2, 0, 0);
     }
     // lua_dumpstack(global_state);

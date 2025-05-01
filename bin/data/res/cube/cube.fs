@@ -44,11 +44,6 @@ float k(float p) {
 
 }
 
-float linearize_depth(float d,float zNear,float zFar)
-{
-    float z_n = 2.0 * d - 1.0;
-    return 2.0 * zNear * zFar / (zFar + zNear - z_n * (zFar - zNear));
-}
 
 vec2 pcf_offset(float x, float y) {
     return 1.0 / textureSize(shadow_map, 0) + vec2(x, y);
@@ -118,21 +113,18 @@ vec3 blinnPhong(sampler2D tex) {
 void main()
 {
     
-    float object_metallicity = 2.0;
-    float object_roughness = 0.01;
+    float object_metallicity = 0.1;
+    float object_roughness = 3.0;
+    vec4 cdiff = texture(material_albedo, object_texture_uvs);
 
     vec3 N = normalize(object_normal);
     vec3 V = normalize(camera_position - object_transformed_position.xyz);
-	           
-    // reflectance equation
-    vec3 Lo = vec3(0.0);
-    // calculate per-light radiance
+
     vec3 L = normalize(-light_direction);
     vec3 H = normalize(V + L);
 
     vec3 radiance = vec3(1.0, 1.0, 1.0);       
-    
-    // cook-torrance brdf
+
     float NDF = ndf(N, H, object_roughness);        
     float G   = smith(N, V, L, object_roughness);      
     vec3 F    = fresnel(max(dot(H, V), 0.1), vec4(material_diffuse, 1.0), object_metallicity);       
@@ -145,12 +137,12 @@ void main()
     float denominator = 4.0 * max(dot(N, V), 0.1) * max(dot(N, L), 0.1) + 0.0001;
     vec3 specular     = numerator / denominator;  
         
-    // add to outgoing radiance Lo
+    
     float NdotL = max(dot(N, L), 0.01);                
-    Lo = (kD * material_diffuse / PI + specular) * radiance * NdotL; 
+    vec3 Lo = (kD * vec3(cdiff) / PI + specular) * radiance * NdotL; 
 
 
-    vec3 color = vec3(0.01) * material_diffuse + Lo;
+    vec3 color = vec3(0.01) * vec3(cdiff) + Lo;
 
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2));  
