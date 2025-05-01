@@ -1,0 +1,7 @@
+properties = {}
+
+function init(self)
+end
+
+function update(self, dt)
+end
